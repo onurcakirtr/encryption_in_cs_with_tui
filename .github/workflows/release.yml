@@ -37,13 +37,20 @@ jobs:
       - name: Install LaTeX (TinyTeX)
         run: |
           choco install tinytex -y
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
           refreshenv
+        shell: powershell
+      
+      - name: Update tlmgr and install packages
+        run: |
+          $env:Path = "C:\tools\TinyTeX\bin\windows;" + $env:Path
           tlmgr update --self
           tlmgr install xelatex
         shell: powershell
       
       - name: Generate PDF from Markdown
         run: |
+          $env:Path = "C:\tools\TinyTeX\bin\windows;" + $env:Path
           pandoc README.md -o PROJECT_REPORT.pdf --pdf-engine=xelatex -V geometry:margin=1in -V monofont="Courier New" --variable mainfont="Times New Roman"
         shell: powershell
       
