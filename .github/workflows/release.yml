@@ -26,8 +26,8 @@ jobs:
       - name: Build Release
         run: dotnet build "cipher app.csproj" -c Release --no-restore
       
-      - name: Publish application
-        run: dotnet publish "cipher app.csproj" -c Release -o ./publish --self-contained false
+      - name: Publish application (Self-Contained)
+        run: dotnet publish "cipher app.csproj" -c Release -o ./publish --self-contained true -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
       
       - name: Setup Pandoc
         uses: pandoc/actions/setup@v1
@@ -91,8 +91,8 @@ jobs:
           $notes += "- **source-code.zip** - Complete source code`n"
           $notes += "- **All runtime dependencies**`n`n"
           $notes += "### Requirements:`n"
-          $notes += "- Windows OS`n"
-          $notes += "- .NET 7.0 Runtime (or self-contained version)`n`n"
+          $notes += "- Windows OS (x64)`n"
+          $notes += "- **NO .NET Runtime needed** (self-contained)`n`n"
           $notes += "### Quick Start:`n"
           $notes += "1. Download and extract the ZIP file`n"
           $notes += "2. Run **cipher app.exe**`n"
