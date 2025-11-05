@@ -1,0 +1,124 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v2.1.3, etc.
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+      
+      - name: Restore dependencies
+        run: dotnet restore "cipher app.csproj"
+      
+      - name: Build Release
+        run: dotnet build "cipher app.csproj" -c Release --no-restore
+      
+      - name: Publish application
+        run: dotnet publish "cipher app.csproj" -c Release -o ./publish --self-contained false
+      
+      - name: Setup Pandoc
+        uses: pandoc/actions/setup@v1
+        with:
+          version: 3.1.11
+      
+      - name: Install LaTeX (TinyTeX)
+        run: |
+          choco install tinytex -y
+          refreshenv
+          tlmgr update --self
+          tlmgr install xelatex
+        shell: powershell
+      
+      - name: Generate PDF from Markdown
+        run: |
+          pandoc README.md -o PROJECT_REPORT.pdf --pdf-engine=xelatex -V geometry:margin=1in -V monofont="Courier New" --variable mainfont="Times New Roman"
+        shell: powershell
+      
+      - name: Prepare release artifacts
+        run: |
+          # Create release directory
+          New-Item -ItemType Directory -Force -Path ./release-artifacts
+          
+          # Copy executable and dependencies
+          Copy-Item -Path ./publish/* -Destination ./release-artifacts/ -Recurse
+          
+          # Copy PDF documentation
+          Copy-Item -Path PROJECT_REPORT.pdf -Destination ./release-artifacts/
+          
+          # Copy README (markdown source)
+          Copy-Item -Path README.md -Destination ./release-artifacts/
+          
+          # Create source code archive
+          git archive --format=zip --output=./release-artifacts/source-code.zip HEAD
+          
+          # Create binary distribution zip
+          Compress-Archive -Path ./release-artifacts/* -DestinationPath cipher-app-${{ github.ref_name }}.zip
+        shell: powershell
+      
+      - name: Extract release notes
+        id: release_notes
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = "## Classic Cipher Application - $tag`n`n"
+          $notes += "### Features:`n"
+          $notes += "- 8 Classical Cryptographic Ciphers`n"
+          $notes += "- Interactive Console GUI`n"
+          $notes += "- Mouse and Keyboard Support`n"
+          $notes += "- Educational Step-by-Step Output`n`n"
+          $notes += "### Included in this Release:`n"
+          $notes += "- **cipher app.exe** - Compiled application`n"
+          $notes += "- **PROJECT_REPORT.pdf** - Comprehensive documentation (English)`n"
+          $notes += "- **source-code.zip** - Complete source code`n"
+          $notes += "- **All runtime dependencies**`n`n"
+          $notes += "### Requirements:`n"
+          $notes += "- Windows OS`n"
+          $notes += "- .NET 7.0 Runtime (or self-contained version)`n`n"
+          $notes += "### Quick Start:`n"
+          $notes += "1. Download and extract the ZIP file`n"
+          $notes += "2. Run **cipher app.exe**`n"
+          $notes += "3. Use arrow keys or mouse to navigate`n"
+          
+          # Save to file for upload
+          $notes | Out-File -FilePath release-notes.txt -Encoding UTF8
+          
+          # Also output for GitHub Actions
+          "notes<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $notes | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        shell: powershell
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release-notes.txt
+          files: |
+            cipher-app-${{ github.ref_name }}.zip
+            ./release-artifacts/cipher app.exe
+            ./release-artifacts/PROJECT_REPORT.pdf
+            ./release-artifacts/source-code.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-package-${{ github.ref_name }}
+          path: |
+            cipher-app-${{ github.ref_name }}.zip
+            ./release-artifacts/*
+          retention-days: 30
